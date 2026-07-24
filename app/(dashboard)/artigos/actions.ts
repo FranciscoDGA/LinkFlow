@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { gerarConteudoComIA } from "@/lib/anthropic/gerarConteudo";
 import {
   construirPromptGerador,
   validarHtmlGerado,
@@ -232,11 +232,7 @@ export async function gerarArtigoComIa(
     };
   }
 
-  // Gera o artigo com Anthropic
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
+  // Monta o prompt e gera o artigo (OpenRouter ou Anthropic, via env)
   const prompt = construirPromptGerador({
     palavraChave,
     anchorText,
@@ -248,20 +244,9 @@ export async function gerarArtigoComIa(
 
   let conteudoHtml: string;
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    });
-
-    conteudoHtml = response.content[0].type === "text" ? response.content[0].text : "";
+    conteudoHtml = await gerarConteudoComIA(prompt);
   } catch (err) {
-    console.error("Erro Anthropic API:", err);
+    console.error("Erro geração IA:", err);
     return {
       error: `Erro ao gerar artigo: ${err instanceof Error ? err.message : "Desconhecido"}`,
     };
