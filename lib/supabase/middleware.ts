@@ -49,6 +49,7 @@ export async function updateSession(request: NextRequest) {
   const isPublicAsset =
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/diagnostico") ||
     pathname === "/favicon.ico";
 
   // Não autenticado tentando acessar área protegida → login
