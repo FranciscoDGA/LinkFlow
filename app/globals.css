@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Estilização do conteúdo de artigos gerados */
+.prose-artigo h1 {
+  @apply text-2xl font-bold text-slate-900 mb-4;
+}
+.prose-artigo h2 {
+  @apply text-xl font-semibold text-slate-800 mt-6 mb-3;
+}
+.prose-artigo h3 {
+  @apply text-lg font-semibold text-slate-700 mt-4 mb-2;
+}
+.prose-artigo p {
+  @apply text-slate-700 leading-relaxed mb-4;
+}
+.prose-artigo a {
+  @apply text-brand-600 underline hover:text-brand-700;
+}
