@@ -24,7 +24,18 @@ export async function login(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return { error: "E-mail ou senha inválidos." };
+    const msg = error.message.toLowerCase();
+    if (msg.includes("email not confirmed")) {
+      return {
+        error:
+          "E-mail ainda não confirmado. Confirme pelo link enviado ou desative a confirmação no Supabase.",
+      };
+    }
+    if (msg.includes("invalid login credentials")) {
+      return { error: "E-mail ou senha inválidos." };
+    }
+    // Qualquer outro erro: mostra o motivo real para facilitar o diagnóstico.
+    return { error: `Erro ao entrar: ${error.message}` };
   }
 
   revalidatePath("/", "layout");
