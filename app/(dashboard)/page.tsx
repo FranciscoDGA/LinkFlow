@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import StatCard from "@/components/ui/StatCard";
+import CadenciaWidget from "@/components/cadencia/CadenciaWidget";
+import AlertasWidget from "@/components/dashboard/AlertasWidget";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +76,24 @@ export default async function DashboardHome() {
           icon="📝"
           accent="amber"
         />
+      </div>
+
+      {/* Alertas */}
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Alertas</h2>
+        <div className="mt-3">
+          <AlertasWidget />
+        </div>
+      </div>
+
+      {/* Cadência do Mês */}
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">
+          Cadência de Links do Mês
+        </h2>
+        <div className="mt-3">
+          <CadenciaWidget />
+        </div>
       </div>
 
       {/* Últimos artigos */}
