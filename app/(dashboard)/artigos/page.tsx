@@ -24,8 +24,17 @@ const STATUS_CORES: Record<string, { bg: string; text: string; label: string }> 
     },
   };
 
-export default async function ArtigosPage() {
+interface SearchParams {
+  status?: string;
+  origem?: string;
+  destino?: string;
+}
+
+export default async function ArtigosPage(props: {
+  searchParams: Promise<SearchParams>;
+}) {
   const supabase = createClient();
+  const searchParams = await props.searchParams;
 
   const {
     data: { user },
@@ -43,25 +52,51 @@ export default async function ArtigosPage() {
     );
   }
 
-  // Busca artigos do usuário
-  const [{ data: artigos }, { data: blogsOrigemData }, { data: blogsDestinoData }] =
-    await Promise.all([
-      supabase
-        .from("artigos")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("criado_em", { ascending: false }),
-      supabase.from("blogs").select("id, nome").eq("user_id", user.id),
-      supabase.from("blogs").select("id, nome").eq("user_id", user.id),
-    ]);
+  // Busca artigos do usuário com filtros
+  let query = supabase
+    .from("artigos")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("criado_em", { ascending: false });
+
+  if (searchParams.status && searchParams.status !== "todos") {
+    query = query.eq("status", searchParams.status);
+  }
+
+  if (searchParams.origem) {
+    query = query.eq("blog_origem_id", searchParams.origem);
+  }
+
+  if (searchParams.destino) {
+    query = query.eq("blog_destino_id", searchParams.destino);
+  }
+
+  const [{ data: artigos }, { data: blogsData }] = await Promise.all([
+    query,
+    supabase.from("blogs").select("id, nome").eq("user_id", user.id),
+  ]);
 
   const artigosLista = (artigos as Artigo[]) || [];
-  const blogsOrigem = new Map(
-    (blogsOrigemData || []).map((b: any) => [b.id, b.nome])
-  );
-  const blogsDestino = new Map(
-    (blogsDestinoData || []).map((b: any) => [b.id, b.nome])
-  );
+  const blogs = new Map((blogsData || []).map((b: any) => [b.id, b.nome]));
+
+  // Estatísticas
+  const { data: stats } = await supabase
+    .from("artigos")
+    .select("status", { count: "exact" })
+    .eq("user_id", user.id);
+
+  const contagemPorStatus = {
+    rascunho: 0,
+    aprovado: 0,
+    publicado: 0,
+    indexado: 0,
+  };
+
+  (stats || []).forEach((s: any) => {
+    if (s.status in contagemPorStatus) {
+      contagemPorStatus[s.status as keyof typeof contagemPorStatus]++;
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -80,13 +115,70 @@ export default async function ArtigosPage() {
         </Link>
       </div>
 
+      {/* Estatísticas */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {Object.entries(contagemPorStatus).map(([status, count]) => {
+          const colors =
+            STATUS_CORES[status] || STATUS_CORES.rascunho;
+          return (
+            <Link
+              key={status}
+              href={`/artigos?status=${status}`}
+              className={`rounded-lg border border-slate-200 bg-white p-4 transition hover:shadow-md ${
+                searchParams.status === status ? "ring-2 ring-brand-500" : ""
+              }`}
+            >
+              <p className="text-xs font-medium text-slate-600 capitalize">
+                {colors.label}
+              </p>
+              <p className="mt-2 text-3xl font-bold text-slate-900">
+                {count}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">artigos</p>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href="/artigos"
+          className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+            !searchParams.status
+              ? "bg-brand-600 text-white"
+              : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          Todos
+        </Link>
+        {Object.keys(STATUS_CORES).map((status) => (
+          <Link
+            key={status}
+            href={`/artigos?status=${status}`}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition capitalize ${
+              searchParams.status === status
+                ? "bg-brand-600 text-white"
+                : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {STATUS_CORES[status].label}
+          </Link>
+        ))}
+      </div>
+
+      {/* Lista */}
       {artigosLista.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center">
           <span className="text-4xl" aria-hidden>
             📝
           </span>
           <h2 className="mt-4 text-lg font-semibold text-slate-800">
-            Nenhum artigo gerado ainda
+            {searchParams.status === "todos" || !searchParams.status
+              ? "Nenhum artigo gerado ainda"
+              : `Nenhum artigo com status "${
+                  STATUS_CORES[searchParams.status]?.label || searchParams.status
+                }"`}
           </h2>
           <p className="mt-1 max-w-md text-sm text-slate-500">
             Use a IA para gerar artigos com links internos automáticos.
@@ -102,17 +194,49 @@ export default async function ArtigosPage() {
         <div className="space-y-3">
           {artigosLista.map((artigo) => {
             const statusInfo = STATUS_CORES[artigo.status] || STATUS_CORES.rascunho;
-            const blogOrigem = blogsOrigem.get(artigo.blog_origem_id) || "—";
-            const blogDestino = blogsDestino.get(artigo.blog_destino_id) || "—";
+            const blogOrigem = blogs.get(artigo.blog_origem_id) || "—";
+            const blogDestino = blogs.get(artigo.blog_destino_id) || "—";
+
+            let acaoPrimaria: string = "";
+            let acaoPrimariaUrl: string = "";
+            let acaoPrimariaColor: string = "";
+
+            if (artigo.status === "rascunho") {
+              acaoPrimaria = "Revisar";
+              acaoPrimariaUrl = `/artigos/${artigo.id}`;
+              acaoPrimariaColor = "text-blue-600 hover:text-blue-700";
+            } else if (artigo.status === "aprovado") {
+              acaoPrimaria = "Publicar";
+              acaoPrimariaUrl = `/artigos/${artigo.id}`;
+              acaoPrimariaColor = "text-green-600 hover:text-green-700";
+            } else if (artigo.status === "publicado") {
+              acaoPrimaria = "Ver Detalhes";
+              acaoPrimariaUrl = `/artigos/${artigo.id}`;
+              acaoPrimariaColor = "text-purple-600 hover:text-purple-700";
+            } else {
+              acaoPrimaria = "Ver";
+              acaoPrimariaUrl = `/artigos/${artigo.id}`;
+              acaoPrimariaColor = "text-slate-600 hover:text-slate-700";
+            }
 
             return (
               <div
                 key={artigo.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4"
+                className="flex flex-col items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 md:flex-row md:items-center"
               >
                 <div className="flex-1">
-                  <h3 className="font-medium text-slate-900">{artigo.titulo}</h3>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                  <div className="flex items-start gap-2">
+                    <h3 className="font-medium text-slate-900">
+                      {artigo.titulo}
+                    </h3>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.bg} ${statusInfo.text} whitespace-nowrap`}
+                    >
+                      {statusInfo.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
                     <span>
                       📖 <strong>{blogOrigem}</strong> → <strong>{blogDestino}</strong>
                     </span>
@@ -128,19 +252,20 @@ export default async function ArtigosPage() {
                       {new Date(artigo.criado_em).toLocaleDateString("pt-BR")}
                     </span>
                   </div>
+
+                  {artigo.url_publicada && (
+                    <p className="mt-2 text-xs text-slate-500 break-all">
+                      🌐 <strong>URL:</strong> {artigo.url_publicada}
+                    </p>
+                  )}
                 </div>
 
-                <div className="ml-4 flex items-center gap-3">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${statusInfo.bg} ${statusInfo.text}`}
-                  >
-                    {statusInfo.label}
-                  </span>
+                <div className="flex gap-2 whitespace-nowrap">
                   <Link
-                    href={`/artigos/${artigo.id}`}
-                    className="text-sm font-medium text-brand-600 transition hover:text-brand-700"
+                    href={acaoPrimariaUrl}
+                    className={`text-sm font-medium transition ${acaoPrimariaColor}`}
                   >
-                    Ver
+                    {acaoPrimaria}
                   </Link>
                 </div>
               </div>

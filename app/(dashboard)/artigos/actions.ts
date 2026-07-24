@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -331,4 +332,202 @@ export async function gerarArtigoComIa(
     success: true,
     artigoId: artigo.id,
   };
+}
+
+/**
+ * Aprova um artigo (rascunho → aprovado)
+ */
+export async function aprovarArtigo(
+  _prev: GeracaoArtigoState,
+  formData: FormData
+): Promise<GeracaoArtigoState> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Sessão expirada. Faça login novamente." };
+  }
+
+  const artigoId = String(formData.get("artigo_id") ?? "").trim();
+  if (!artigoId) return { error: "ID do artigo não informado." };
+
+  const { error } = await supabase
+    .from("artigos")
+    .update({ status: "aprovado" })
+    .eq("id", artigoId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return { error: `Erro ao aprovar: ${error.message}` };
+  }
+
+  revalidatePath("/artigos");
+  revalidatePath(`/artigos/${artigoId}`);
+  return { success: true };
+}
+
+/**
+ * Publica um artigo (aprovado → publicado)
+ * Cria registro em links_ativos
+ */
+export async function publicarArtigo(
+  _prev: GeracaoArtigoState,
+  formData: FormData
+): Promise<GeracaoArtigoState> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Sessão expirada. Faça login novamente." };
+  }
+
+  const artigoId = String(formData.get("artigo_id") ?? "").trim();
+  const urlPublicada = String(formData.get("url_publicada") ?? "").trim();
+  const conteudoAtualizado = String(formData.get("conteudo") ?? "").trim();
+
+  if (!artigoId) return { error: "ID do artigo não informado." };
+  if (!urlPublicada) return { error: "URL publicada é obrigatória." };
+
+  // Busca os dados do artigo
+  const { data: artigo, error: erroArtigo } = await supabase
+    .from("artigos")
+    .select("*")
+    .eq("id", artigoId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (erroArtigo || !artigo) {
+    return { error: "Artigo não encontrado." };
+  }
+
+  // Valida URL
+  try {
+    new URL(urlPublicada);
+  } catch {
+    return { error: "URL publicada inválida." };
+  }
+
+  // Busca dados dos blogs
+  const [{ data: blogOrigem }, { data: blogDestino }] = await Promise.all([
+    supabase
+      .from("blogs")
+      .select("id, url")
+      .eq("id", artigo.blog_origem_id)
+      .single(),
+    supabase
+      .from("blogs")
+      .select("id, url")
+      .eq("id", artigo.blog_destino_id)
+      .single(),
+  ]);
+
+  if (!blogOrigem || !blogDestino) {
+    return { error: "Blog origem ou destino não encontrado." };
+  }
+
+  const agora = new Date();
+
+  // Atualiza artigo
+  const { error: erroUpdate } = await supabase
+    .from("artigos")
+    .update({
+      status: "publicado",
+      url_publicada: urlPublicada,
+      publicado_em: agora.toISOString(),
+      conteudo: conteudoAtualizado || artigo.conteudo,
+    })
+    .eq("id", artigoId);
+
+  if (erroUpdate) {
+    return { error: `Erro ao publicar: ${erroUpdate.message}` };
+  }
+
+  // Cria registro em links_ativos
+  const { error: erroLink } = await supabase.from("links_ativos").insert({
+    user_id: user.id,
+    artigo_id: artigoId,
+    blog_origem_id: artigo.blog_origem_id,
+    blog_destino_id: artigo.blog_destino_id,
+    anchor_text: artigo.anchor_text,
+    url_origem: urlPublicada,
+    url_destino: blogDestino.url,
+    status: "ativo",
+  });
+
+  if (erroLink) {
+    return { error: `Erro ao registrar link: ${erroLink.message}` };
+  }
+
+  revalidatePath("/artigos");
+  revalidatePath("/");
+  revalidatePath(`/artigos/${artigoId}`);
+  return { success: true };
+}
+
+/**
+ * Atualiza conteúdo de um artigo (rascunho)
+ */
+export async function atualizarConteudoArtigo(
+  _prev: GeracaoArtigoState,
+  formData: FormData
+): Promise<GeracaoArtigoState> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Sessão expirada. Faça login novamente." };
+  }
+
+  const artigoId = String(formData.get("artigo_id") ?? "").trim();
+  const conteudo = String(formData.get("conteudo") ?? "").trim();
+  const titulo = String(formData.get("titulo") ?? "").trim();
+
+  if (!artigoId) return { error: "ID do artigo não informado." };
+  if (!conteudo) return { error: "Conteúdo não pode ser vazio." };
+
+  const { error } = await supabase
+    .from("artigos")
+    .update({
+      conteudo,
+      titulo: titulo || undefined,
+    })
+    .eq("id", artigoId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return { error: `Erro ao atualizar: ${error.message}` };
+  }
+
+  revalidatePath(`/artigos/${artigoId}`);
+  return { success: true };
+}
+
+/**
+ * Deleta um artigo
+ */
+export async function deletarArtigo(formData: FormData): Promise<void> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const artigoId = String(formData.get("id") ?? "").trim();
+  if (!artigoId) return;
+
+  await supabase
+    .from("artigos")
+    .delete()
+    .eq("id", artigoId)
+    .eq("user_id", user.id);
+
+  revalidatePath("/artigos");
+  redirect("/artigos");
 }
