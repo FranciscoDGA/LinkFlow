@@ -6,7 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
  * Provedor escolhido por variável de ambiente:
  * - Se OPENROUTER_API_KEY estiver definida → usa a OpenRouter
  *   (API compatível com OpenAI). Modelo configurável via OPENROUTER_MODEL
- *   (padrão: anthropic/claude-3.5-sonnet).
+ *   (padrão: anthropic/claude-sonnet-4.6).
  * - Caso contrário → usa a Anthropic API direta (ANTHROPIC_API_KEY),
  *   modelo claude-sonnet-4-6.
  */
@@ -17,7 +17,7 @@ export async function gerarConteudoComIA(
   const openrouterKey = process.env.OPENROUTER_API_KEY;
 
   if (openrouterKey) {
-    const model = process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
+    const model = process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4.6";
 
     const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
