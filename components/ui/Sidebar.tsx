@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { href: "/blogs", label: "Blogs", icon: "🌐" },
   { href: "/relacionamentos", label: "Relacionamentos", icon: "🔗" },
   { href: "/artigos", label: "Artigos", icon: "📝" },
+  { href: "/keywords", label: "Keywords", icon: "🔍" },
   { href: "/links", label: "Links Ativos", icon: "⚡" },
   { href: "/anchors", label: "Anchor Texts", icon: "🎯" },
   { href: "/relatorios", label: "Relatórios", icon: "📈" },

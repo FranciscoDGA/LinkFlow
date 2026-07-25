@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import BlogCard from "@/components/blogs/BlogCard";
+import SyncMetricsButton from "@/components/blogs/SyncMetricsButton";
 import type { Blog } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -38,12 +39,15 @@ export default async function BlogsPage() {
               : `${blogs.length} blog${blogs.length > 1 ? "s" : ""} na rede.`}
           </p>
         </div>
-        <Link
-          href="/blogs/novo"
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
-        >
-          + Novo blog
-        </Link>
+        <div className="flex items-center gap-3">
+          <SyncMetricsButton />
+          <Link
+            href="/blogs/novo"
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+          >
+            + Novo blog
+          </Link>
+        </div>
       </div>
 
       {blogs.length === 0 ? (

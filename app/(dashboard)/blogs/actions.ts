@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { dataForSeoRequest } from "@/lib/dataforseo/client";
 
 export type BlogFormState = {
   error?: string;
@@ -163,4 +164,63 @@ export async function deletarBlog(formData: FormData): Promise<void> {
   revalidatePath("/blogs");
   revalidatePath("/");
   redirect("/blogs");
+}
+
+/**
+ * Sincroniza os blogs com dados REAIS de DR e Tráfego do DataForSEO.
+ */
+export async function syncRealSeoMetrics(): Promise<{ error?: string; success?: boolean }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Sessão expirada." };
+  }
+
+  const { data: blogs, error: fetchError } = await supabase
+    .from("blogs")
+    .select("id, url")
+    .eq("user_id", user.id);
+
+  if (fetchError || !blogs || blogs.length === 0) {
+    return { error: "Erro ao buscar blogs." };
+  }
+
+  try {
+    // Prepara payload em lote para a API
+    const payload = blogs.map(b => {
+      let host = b.url;
+      try { host = new URL(b.url).hostname; } catch {}
+      return { target: host, location_name: "Brazil", language_name: "Portuguese" };
+    });
+
+    // Endpoint de métricas de domínio do DataForSEO
+    const response = await dataForSeoRequest<any>("dataforseo_labs/google/domain_rank_overview/live", payload);
+
+    for (let i = 0; i < blogs.length; i++) {
+      const blog = blogs[i];
+      // Pega o resultado correspondente ao task no array
+      const metrics = response.tasks?.[i]?.result?.[0]?.metrics?.organic;
+      
+      const realDr = response.tasks?.[i]?.result?.[0]?.metrics?.domain_rank ?? 0;
+      const realTrafego = metrics?.etv ?? 0; // Estimated Traffic Volume
+
+      await supabase
+        .from("blogs")
+        .update({
+          dr: Math.round(realDr),
+          trafego_mensal: Math.round(realTrafego),
+        })
+        .eq("id", blog.id);
+    }
+
+    revalidatePath("/blogs");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao sincronizar com DataForSEO:", error);
+    return { error: "Falha na comunicação com a API de SEO. Verifique suas credenciais." };
+  }
 }

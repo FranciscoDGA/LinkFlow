@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import StatCard from "@/components/ui/StatCard";
 import CadenciaWidget from "@/components/cadencia/CadenciaWidget";
 import AlertasWidget from "@/components/dashboard/AlertasWidget";
+import DashboardChart from "@/components/ui/DashboardChart";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,9 @@ export default async function DashboardHome() {
           accent="amber"
         />
       </div>
+
+      {/* Gráfico de Tráfego (SEO MVP) */}
+      <DashboardChart />
 
       {/* Alertas */}
       <div>
