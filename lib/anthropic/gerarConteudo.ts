@@ -12,7 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
  */
 export async function gerarConteudoComIA(
   prompt: string,
-  maxTokens = 8000
+  maxTokens = 2500
 ): Promise<string> {
   const openrouterKey = process.env.OPENROUTER_API_KEY;
 
