@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import FormularioGeracaoArtigo from "@/components/artigos/FormularioGeracaoArtigo";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Permite até 60 segundos na Vercel (Hobby) para a IA gerar o texto
 
 export default async function GerarArtigoPage() {
   const supabase = createClient();
