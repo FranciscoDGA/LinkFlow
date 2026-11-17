@@ -40,7 +40,13 @@ export default function LoginPage() {
           router.push("/dashboard");
           return;
         }
-        setError("Credenciais administrativas incorretas ou conta inativa.");
+        if (authError.message.includes("Email not confirmed")) {
+          setError("E-mail não confirmado. Marque 'Auto Confirm User' no Supabase ou desative 'Confirm email' em Auth > Providers.");
+        } else if (authError.message.includes("Invalid login credentials")) {
+          setError("E-mail ou senha incorretos.");
+        } else {
+          setError(authError.message || "Credenciais administrativas incorretas ou conta inativa.");
+        }
         setIsLoading(false);
         return;
       }
